@@ -334,7 +334,7 @@ def write_tag_pages(
     print("One day we'll write out some tag pages")
 
 
-def build_site(config: Config) -> float:
+def build_site(config: Config, index: bool = False) -> float:
     start_time = time.time()
     print("🚀 Building site...")
 
@@ -365,9 +365,7 @@ def build_site(config: Config) -> float:
     collections = build_collections(pages=pages)
 
     # Write pages
-    write_pages(
-        config=config, site_data=site_data, pages=pages, collections=collections
-    )
+    write_pages(config=config, site_data=site_data, pages=pages, collections=collections)
     # Write tag pages
     write_tag_pages(
         config=config, site_data=site_data, pages=pages, collections=collections
@@ -377,7 +375,8 @@ def build_site(config: Config) -> float:
     print(f"✅ Build finished in {build_duration:.3f}s. Processed {page_count} pages.")
 
     # Run pagefind
-    build_search_index(config.dist_dir)
+    if index:
+        build_search_index(config.dist_dir)
 
     # Final Duration
     final_duration = time.time() - start_time

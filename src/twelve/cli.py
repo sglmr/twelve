@@ -81,14 +81,14 @@ def parse_new(args: Namespace, parser: ArgumentParser):
 # region build
 def parse_build(args: Namespace, parser: ArgumentParser):
     config = Config(src_dir=Path(args.input), dist_dir=Path(args.output))
-    build_duration = build_site(config=config)
+    build_duration = build_site(config=config, index=args.index)
 
     if args.serve or args.live_reload:
         server = Server()
     if args.live_reload:
 
         def _rebuild():
-            build_site(config=config)
+            build_site(config=config, index=args.index)
 
         server.watch(str(config.src_dir), _rebuild)
     if args.serve or args.live_reload:
@@ -133,6 +133,9 @@ def cli(argv: Sequence[str] | None = None) -> int:
     build_parser.add_argument("-s", "--serve", action="store_true", help="Serve site")
     build_parser.add_argument(
         "-l", "--live-reload", action="store_true", help="Live reload"
+    )
+    build_parser.add_argument(
+        "--index", action="store_true", help="Build pagefind search index"
     )
 
     # --- NEW COMMAND ---

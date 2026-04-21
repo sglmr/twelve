@@ -1,2 +1,4 @@
-def main() -> None:
-    print("Hello from twelve!")
+import logging
+
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())

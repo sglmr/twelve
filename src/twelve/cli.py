@@ -8,6 +8,7 @@ from pathlib import Path
 from urllib import parse
 
 from jinja2 import Template
+from livereload import Server
 from rich import print
 from slugify import slugify
 
@@ -83,8 +84,6 @@ def parse_build(args: Namespace, parser: ArgumentParser):
     build_duration = build_site(config=config)
 
     if args.serve or args.live_reload:
-        from livereload import Server
-
         server = Server()
     if args.live_reload:
 

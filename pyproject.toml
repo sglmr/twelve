@@ -15,11 +15,12 @@ dependencies = [
     "python-frontmatter>=1.1.0",
     "python-slugify>=8.0.4",
     "rich>=15.0.0",
+    "livereload>=2.7.1",
 ]
 
 [dependency-groups]
 dev = [
-    "livereload>=2.7.1",
+    
     "pre-commit>=4.5.1",
     "ruff>=0.15.10",
     "fake-useragent>=2.2.0",

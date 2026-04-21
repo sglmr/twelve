@@ -260,7 +260,7 @@ def build_search_index(site_dir: str | Path):
         site = str(site_dir)
 
     # python3 -m pagefind --site public --serve
-    subprocess.run(["python", "-m", "pagefind", "--site", site], check=True)
+    subprocess.run(["npx", "-y", "pagefind", "--site", site], check=True)
 
 
 def get_relative_dest_path(page: Page) -> Path:

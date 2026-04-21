@@ -1,0 +1,17 @@
+# .pre-commit-config.yaml
+
+repos:
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    rev: 0.11.6
+    hooks:
+      - id: uv-export
+        args: ["--format", "requirements-txt", "--output-file", "requirements.txt", "--no-dev"]
+        
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.11
+    hooks:
+      # Run the linter.
+      - id: ruff-check
+        args: [ --fix ] # Automatically fix lint errors
+      # Run the formatter.
+      - id: ruff-format

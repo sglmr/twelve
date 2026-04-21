@@ -372,18 +372,17 @@ def build_site(config: Config, index: bool = False) -> float:
     )
 
     build_duration = time.time() - start_time
+
+    # Write build stats
+    write_build_stats(config=config, collections=collections, build_time=build_duration)
+
     print(f"✅ Build finished in {build_duration:.3f}s. Processed {page_count} pages.")
 
     # Run pagefind
     if index:
         build_search_index(config.dist_dir)
-
-    # Final Duration
-    final_duration = time.time() - start_time
-
-    # Write build stats
-    write_build_stats(config=config, collections=collections, build_time=final_duration)
-
-    print(f"✅ Search index finished, {final_duration:.3f}s.")
+        # Final Duration
+        final_duration = time.time() - start_time
+        print(f"✅ Search index finished, {final_duration:.3f}s.")
 
     return build_duration

@@ -84,7 +84,7 @@ def create_new_post(title: str, template_name: str, date: datetime, input: Path)
 
         # Open the file in obsidian
         # uri = f"obsidian://open?vault={encoded_vault}&file={encoded_file}"
-        encoded_file = parse.quote(str(destination))
+        encoded_file = parse.quote(str(destination.relative_to(input)))
         uri = f"obsidian://open?file={encoded_file}"
         webbrowser.open(uri)
     except Exception as e:

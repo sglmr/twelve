@@ -46,7 +46,7 @@ line-length = 90
 cache-dir = ".tmp/.ruff_cache"
 
 [tool.pytest.ini_options]
-addopts = "--cov=src --cov-report=term-missing"
+addopts = "--cov=src --cov-report=term-missing --cov-report=xml:.tmp/coverage.xml"
 testpaths = ["tests"]
 cache_dir = ".tmp/.pytest_cache"
 

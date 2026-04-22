@@ -20,11 +20,12 @@ from twelve.utils import safe_write
 
 
 def template_choices(templates_dir: Path) -> list[str]:
-
+    """Returns a list of template options for creating new posts."""
     return [t.stem for t in templates_dir.glob("*.md")]
 
 
 def print_template_choices(templates_dir: Path):
+    """Print out a list of available templates to choose from."""
     print("Available templates: ")
     for t in template_choices(templates_dir):
         print(f" - {t}")
@@ -108,41 +109,41 @@ def run_build_site(input: Path, output: Path, index: bool) -> float:
     return duration
 
 
+def should_ignore_watch_path(path_str: str, input: Path, output: Path) -> bool:
+    """
+    Helper function that decides if a changed file path should be ignored.
+    True == ignore
+
+    """
+    # Resolve the incoming path from livereload
+    path = Path(path_str).resolve()
+
+    # Rule 1: ignore files in the output folder
+    if path.is_relative_to(output):
+        return True
+
+    # Rule 2: Check if any part of the path is hidden (e.g., .git, .DS_Store, .obsidian/)
+    #   any() to checks all parts of the path at once.
+    if any(part.startswith(".") for part in path.parts):
+        return True
+
+    return False
+
+
 def run_build_and_serve(
     input: Path, output: Path, reload: bool, index: bool, port: int = 8080
 ):
 
-    abs_input = input.resolve()
-    abs_output = output.resolve()
-
     def _build():
-        return run_build_site(input=abs_input, output=abs_output, index=index)
+        return run_build_site(input=input, output=output, index=index)
 
-    def _ignore(path_str):
-        # Resolve the incoming path from livereload
-        path = Path(path_str).resolve()
-
-        # Use is_relative_to to check location
-        if path.is_relative_to(abs_output):
-            return True
-
-        # Ignore other hidden files like .DS_Store or .git
-        if any(
-            part.startswith(".")
-            for part in path.parts
-            if part not in [abs_input.name, abs_output.name]
-        ):
-            if not path.is_relative_to(
-                abs_input
-            ):  # Don't ignore files in the root input if they aren't hidden
-                return True
-
-        return False
+    def _ignore(path_str: str):
+        return should_ignore_watch_path(path_str=path_str, input=input, output=output)
 
     duration = _build()
     server = Server()
     if reload:
-        server.watch(filepath=str(abs_input), delay=1, func=_build, ignore=_ignore)
+        server.watch(filepath=str(input), delay=1, func=_build, ignore=_ignore)
     server.serve(
         root=str(output),
         port=8080,
@@ -207,11 +208,11 @@ def cli(argv: Sequence[str] | None = None) -> int:
 
     # Parse args
     args = main_parser.parse_args(argv)
-    input_path = Path(args.input)
+    input_path = Path(args.input).resolve()
 
     match args.command:
         case "build":
-            output_path = Path(args.output)
+            output_path = Path(args.output).resolve()
             if args.live_reload or args.serve:
                 run_build_and_serve(
                     input=input_path,

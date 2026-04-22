@@ -7,22 +7,34 @@ from twelve.cli import create_post_data, get_template_content
 
 
 def test_get_template_content_finds_and_reads_file(tmp_path: Path):
-    # SETUP: Create a fake template files in the temp directory
+    # setup the test
     template_file = tmp_path / "blog-post.md"
     template_file.write_text("Hello from the template!")
     template_file = tmp_path / "blog-post-2.md"
     template_file.write_text("I built another SSG!")
 
-    # 2. EXECUTE: Call your function pointing to the temp directory
-    content = get_template_content(template_name="blog", templates_dir=tmp_path)
+    # Call the function
+    content = get_template_content(template_name="blog-post-2", templates_dir=tmp_path)
 
-    # 3. ASSERT: Check if it read the right thing
-    assert content == "Hello from the template!"
+    # assert
+    assert content == "I built another SSG!"
+
+
+def test_get_template_content_raises_ambiguous_value_error(tmp_path: Path):
+    # setup the test
+    template_file = tmp_path / "blog-post.md"
+    template_file.write_text("Hello from the template!")
+    template_file = tmp_path / "blog-post-2.md"
+    template_file.write_text("I built another SSG!")
+
+    # assert
+    with pytest.raises(ValueError):
+        get_template_content(template_name="blog", templates_dir=tmp_path)
 
 
 def test_get_template_content_raises_error_if_not_found(tmp_path: Path):
     # Create a directory but put nothing in it
-    with pytest.raises(StopIteration):
+    with pytest.raises(FileNotFoundError):
         get_template_content(template_name="missing", templates_dir=tmp_path)
 
 

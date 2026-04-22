@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import sys
 import time
 import webbrowser
@@ -154,6 +155,10 @@ def run_build_and_serve(
 
 # region cli
 def cli(argv: Sequence[str] | None = None) -> int:
+
+    env_input = os.getenv("TWELVE_INPUT")
+    env_output = os.getenv("TWELVE_OUTPUT", ".site")
+
     main_parser = ArgumentParser(
         description="bs: build site", formatter_class=ArgumentDefaultsHelpFormatter
     )
@@ -162,7 +167,7 @@ def cli(argv: Sequence[str] | None = None) -> int:
     shared_parser = ArgumentParser(add_help=False)
     # shared_parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose output.")
     shared_parser.add_argument(
-        "-i", "--input", dest="input", help="input directory", required=True
+        "-i", "--input", dest="input", help="input directory", default=env_input
     )
 
     # Create the top-level subparser object
@@ -173,12 +178,7 @@ def cli(argv: Sequence[str] | None = None) -> int:
         "build", parents=[shared_parser], help="Build the static site"
     )
     build_parser.add_argument(
-        "-o",
-        "--output",
-        dest="output",
-        default=".site",
-        help="destination directory",
-        required=True,
+        "-o", "--output", dest="output", default=env_output, help="destination directory"
     )
     build_parser.add_argument("-s", "--serve", action="store_true", help="Serve site")
     build_parser.add_argument(

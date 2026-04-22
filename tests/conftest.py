@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from src.config import Config
+from twelve.config import Config
 
 
 @pytest.fixture

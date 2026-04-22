@@ -336,7 +336,6 @@ def write_tag_pages(
 
 def build_site(config: Config, index: bool = False) -> float:
     start_time = time.time()
-    print("🚀 Building site...")
 
     # Clear destination directory
     clear_dist_dir(config.dist_dir)
@@ -376,13 +375,7 @@ def build_site(config: Config, index: bool = False) -> float:
     # Write build stats
     write_build_stats(config=config, collections=collections, build_time=build_duration)
 
-    print(f"✅ Build finished in {build_duration:.3f}s. Processed {page_count} pages.")
-
     # Run pagefind
     if index:
         build_search_index(config.dist_dir)
         # Final Duration
-        final_duration = time.time() - start_time
-        print(f"✅ Search index finished, {final_duration:.3f}s.")
-
-    return build_duration

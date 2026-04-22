@@ -3,8 +3,14 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
 
-from src.config import Config, display_date_filter, jinja_loader, rfc822_format, rfc3339_format
-from src.utils import md_to_html
+from twelve.config import (
+    Config,
+    display_date_filter,
+    jinja_loader,
+    rfc822_format,
+    rfc3339_format,
+)
+from twelve.utils import md_to_html
 
 
 # region diplay_date_filter

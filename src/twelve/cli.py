@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import sys
+import time
 import webbrowser
-from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
+from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
@@ -13,90 +15,122 @@ from rich import print
 from slugify import slugify
 
 from twelve.generator import Config, build_site
+from twelve.utils import safe_write
+
+
+def template_choices(templates_dir: Path) -> list[str]:
+
+    return [t.stem for t in templates_dir.glob("*.md")]
+
+
+def print_template_choices(templates_dir: Path):
+    print("Available templates: ")
+    for t in template_choices(templates_dir):
+        print(f" - {t}")
+
+
+def get_template_content(template_name: str, templates_dir: Path) -> str:
+    matches = list(templates_dir.glob(f"*{template_name}*.md"))
+
+    if len(matches) > 1:
+        names = ", ".join([m.name for m in matches])
+        raise ValueError(f"Ambiguous template name! Found: {names}")
+    if not matches:
+        raise FileNotFoundError(
+            f"Could not find template matching '{template_name}' in '{templates_dir}'"
+        )
+    return matches[0].read_text()
+
+
+def create_post_data(
+    title: str, template_name: str, template: str, date: datetime, input: Path
+) -> tuple[str, Path]:
+    """
+    Creates the post content and where to write it to.
+    """
+    slug = slugify(title)
+
+    context = {
+        "date": date.date().isoformat(),
+        "title": title,
+        "slug": slugify(title),
+        "permalink": f"/blog/{slug}/",
+    }
+    jinja_template = Template(template)
+    post_content = jinja_template.render(**context)
+
+    destination = input / f"{template_name}s" / str(date.year) / f"{slugify(title)}.md"
+
+    return post_content, destination
 
 
 # region new
-def parse_new(args: Namespace, parser: ArgumentParser):
-    # List the template choices
-
-    config = Config(src_dir=Path(args.input), dist_dir=Path(args.input))
-
-    new_template_choices = [t for t in config.template_dir.glob("*.md")]
-
-    if args.list:
-        print("Available Templates:")
-        for t in new_template_choices:
-            print(f" - {t.stem}")
-
-    # Preview a specific template
-    elif args.template and args.preview:
-        file = next(config.template_dir.glob(f"*{args.template}*.md"))
-        print(file.read_text().strip())
-
-    # Create a new file with the specified template
-    elif args.template:
-        if isinstance(args.title, str):
-            title = args.title
-        else:
-            title = " ".join(args.title)
-
-        template = next(config.template_dir.glob(f"*{args.template}*.md"))
-        context = {
-            "date": args.date.date().isoformat(),
-            "title": title,
-            "slug": slugify(title),
-            "template_name": template.name,
-            "permalink": f"/blog/{slugify(title)}/",
-        }
-
-        jinja_template = Template(template.read_text())
-        rendered = jinja_template.render(**context)
-
-        dist = (
-            config.src_dir
-            / f"{template.stem}s"
-            / str(args.date.year)
-            / f"{slugify(title)}.md"
+def create_new_post(title: str, template_name: str, date: datetime, input: Path):
+    try:
+        template = get_template_content(
+            template_name=template_name, templates_dir=input / "_templates"
         )
 
-        # Write the file
-        if dist.exists():
-            raise ValueError("Oops, almost overwrote an existing file, try again")
-        dist.write_text(rendered)
+        post_content, destination = create_post_data(
+            title=title,
+            template_name=template_name,
+            template=template,
+            date=date,
+            input=input,
+        )
+
+        safe_write(file_path=destination, content=post_content)
 
         # Open the file in obsidian
-        encoded_file = parse.quote(str(dist))
-
         # uri = f"obsidian://open?vault={encoded_vault}&file={encoded_file}"
+        encoded_file = parse.quote(str(destination))
         uri = f"obsidian://open?file={encoded_file}"
         webbrowser.open(uri)
-
-    else:
-        parser.print_help()
+    except Exception as e:
+        print(f"[bold red]Error:[/bold red] {e}")
+        sys.exit(1)
 
 
 # endregion
 
 
 # region build
-def parse_build(args: Namespace, parser: ArgumentParser):
-    config = Config(src_dir=Path(args.input), dist_dir=Path(args.output))
-    build_duration = build_site(config=config, index=args.index)
 
-    if args.serve or args.live_reload:
-        server = Server()
-    if args.live_reload:
 
-        def _rebuild():
-            build_site(config=config, index=args.index)
+def run_build_site(input: Path, output: Path, index: bool) -> float:
+    print("🚀 Building site...")
+    start_time = time.time()
+    config = Config(src_dir=input, dist_dir=output)
+    build_site(config=config, index=index)
+    duration = time.time() - start_time
+    print(f"🏁 Build completed in {duration:.1f}s")
+    return duration
 
-        server.watch(str(config.src_dir), _rebuild)
-    if args.serve or args.live_reload:
-        server.serve(
-            root=str(config.dist_dir),
-            port=8080,
-            open_url_delay=build_duration * 1.05,
-        )
+
+def run_build_and_serve(
+    input: Path, output: Path, reload: bool, index: bool, port: int = 8080
+):
+    def _build():
+        return run_build_site(input=input, output=output, index=index)
+
+    def _ignore(path_str):
+        obsidian_dir = input / ".obsidian"
+        path = Path(path_str).resolve()
+        if str(path).startswith(str(output)):
+            return True
+        if str(path).startswith(str(obsidian_dir)):
+            return True
+        return False
+
+    duration = _build()
+    server = Server()
+    if reload:
+        server.watch(filepath=str(input), delay=1, func=_build, ignore=_ignore)
+    server.serve(
+        root=str(output),
+        port=8080,
+        open_url_delay=0,
+    )
 
 
 # endregion
@@ -104,30 +138,30 @@ def parse_build(args: Namespace, parser: ArgumentParser):
 
 # region cli
 def cli(argv: Sequence[str] | None = None) -> int:
-    parser = ArgumentParser(
+    main_parser = ArgumentParser(
         description="bs: build site", formatter_class=ArgumentDefaultsHelpFormatter
     )
 
+    # A shared parser for the input directory
+    shared_parser = ArgumentParser(add_help=False)
+    # shared_parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose output.")
+    shared_parser.add_argument(
+        "-i", "--input", dest="input", help="input directory", required=True
+    )
+
     # Create the top-level subparser object
-    subparsers = parser.add_subparsers(dest="command", help="Available commands")
+    subparsers = main_parser.add_subparsers(dest="command", help="Available commands")
 
     # --- BUILD COMMAND ---
-    build_parser = subparsers.add_parser("build", help="Build the static site")
-
-    build_parser.add_argument(
-        "-i",
-        "--input",
-        dest="input",
-        default="content",
-        help="Where to look for source content.",
-        required=True,
+    build_parser = subparsers.add_parser(
+        "build", parents=[shared_parser], help="Build the static site"
     )
     build_parser.add_argument(
         "-o",
         "--output",
         dest="output",
-        default="_site",
-        help="Where the finished site will write to.",
+        default=".site",
+        help="destination directory",
         required=True,
     )
     build_parser.add_argument("-s", "--serve", action="store_true", help="Serve site")
@@ -139,16 +173,14 @@ def cli(argv: Sequence[str] | None = None) -> int:
     )
 
     # --- NEW COMMAND ---
-    new_parser = subparsers.add_parser("new", help="Create new content")
+    new_parser = subparsers.add_parser(
+        "new", parents=[shared_parser], help="Create a new post"
+    )
     new_parser.add_argument(
         "template", nargs="?", help="The name of a template to create content from."
     )
-    new_parser.add_argument("title", nargs="*", default="New Post", help="title")
+    new_parser.add_argument("title", nargs="?", default="New Post", help="title")
     new_parser.add_argument("-l", "--list", action="store_true", help="list templates")
-    new_parser.add_argument(
-        "-p", "--preview", action="store_true", help="preview template"
-    )
-    new_parser.add_argument("-d", "--date", default=datetime.today(), help="post date")
 
     # --- CRAWL COMMAND ---
     crawl_parser = subparsers.add_parser("crawl", help="Crawl the website.")
@@ -158,13 +190,37 @@ def cli(argv: Sequence[str] | None = None) -> int:
     )
 
     # Parse args
-    args = parser.parse_args(argv)
+    args = main_parser.parse_args(argv)
+    input_path = Path(args.input)
 
     match args.command:
         case "build":
-            parse_build(args, build_parser)
+            output_path = Path(args.output)
+            if args.live_reload or args.serve:
+                run_build_and_serve(
+                    input=input_path,
+                    output=output_path,
+                    reload=args.live_reload,
+                    index=args.index,
+                )
+
+            run_build_site(input=input_path, output=output_path, index=args.index)
+
         case "new":
-            parse_new(args, new_parser)
+            # List the available templates
+            if args.list:
+                print_template_choices(input_path / "_templates")
+                return
+            # Create a new post
+            if args.template and args.title:
+                create_new_post(
+                    title=str(args.title),
+                    template_name=str(args.template),
+                    date=datetime.now(),
+                    input=input_path,
+                )
+                return
+            new_parser.print_help()
         case "crawl":
             print("Not implemented yet")
 

@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from src.generator import create_page_object, discover_data, should_process
+from twelve.generator import create_page_object, discover_data, should_process
 
 
 # region discover_pages
@@ -137,7 +137,10 @@ def test_permalink_normalization(base_metadata, input_link, expected):
         ("content/posts/my-post.md", False),
         ("pages/index.html", True),
         ("blog/pages/about.html", True),
-        ("blog/2026/pages-are-cool.md", False),  # 'pages' is in the filename, not a directory
+        (
+            "blog/2026/pages-are-cool.md",
+            False,
+        ),  # 'pages' is in the filename, not a directory
     ],
 )
 def test_is_page_detection(base_metadata, path_str, expected_is_page):

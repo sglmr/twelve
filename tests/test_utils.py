@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from src.utils import md_to_html, normalize_tags, safe_write
+from twelve.utils import md_to_html, normalize_tags, safe_write
 
 
 # region safe_write

@@ -238,6 +238,8 @@ def build_collections(pages: list[Page]) -> Collections:
 def clear_dist_dir(dist_dir: Path):
     if dist_dir.exists():
         shutil.rmtree(dist_dir)
+    while dist_dir.exists():
+        time.sleep(0.0001)
     dist_dir.mkdir()
 
 

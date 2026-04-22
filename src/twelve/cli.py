@@ -110,22 +110,38 @@ def run_build_site(input: Path, output: Path, index: bool) -> float:
 def run_build_and_serve(
     input: Path, output: Path, reload: bool, index: bool, port: int = 8080
 ):
+
+    abs_input = input.resolve()
+    abs_output = output.resolve()
+
     def _build():
-        return run_build_site(input=input, output=output, index=index)
+        return run_build_site(input=abs_input, output=abs_output, index=index)
 
     def _ignore(path_str):
-        obsidian_dir = input / ".obsidian"
+        # Resolve the incoming path from livereload
         path = Path(path_str).resolve()
-        if str(path).startswith(str(output)):
+
+        # Use is_relative_to to check location
+        if path.is_relative_to(abs_output):
             return True
-        if str(path).startswith(str(obsidian_dir)):
-            return True
+
+        # Ignore other hidden files like .DS_Store or .git
+        if any(
+            part.startswith(".")
+            for part in path.parts
+            if part not in [abs_input.name, abs_output.name]
+        ):
+            if not path.is_relative_to(
+                abs_input
+            ):  # Don't ignore files in the root input if they aren't hidden
+                return True
+
         return False
 
     duration = _build()
     server = Server()
     if reload:
-        server.watch(filepath=str(input), delay=1, func=_build, ignore=_ignore)
+        server.watch(filepath=str(abs_input), delay=1, func=_build, ignore=_ignore)
     server.serve(
         root=str(output),
         port=8080,
@@ -203,8 +219,8 @@ def cli(argv: Sequence[str] | None = None) -> int:
                     reload=args.live_reload,
                     index=args.index,
                 )
-
-            run_build_site(input=input_path, output=output_path, index=args.index)
+            else:
+                run_build_site(input=input_path, output=output_path, index=args.index)
 
         case "new":
             # List the available templates

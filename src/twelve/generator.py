@@ -13,10 +13,11 @@ from zoneinfo import ZoneInfo
 
 import frontmatter
 import yaml
+from jinja2 import Environment
 from rich import print
 from slugify import slugify
 
-from twelve.config import Config
+from twelve.config import get_jinja_env
 from twelve.utils import md_to_html, normalize_tags, safe_write
 
 logger = logging.getLogger(__name__)
@@ -63,12 +64,7 @@ class Page(TypedDict, total=False):
     notes: NotRequired[list[str]]
 
 
-class Collections(TypedDict, total=False):
-    posts: list[Page]
-    pages: list[Page]
-    hidden_posts: list[Page]
-    hidden_pages: list[Page]
-    tags: dict[str, list[Page]]
+Collections = dict[str, list[Page]]
 
 
 def create_page_object(content: str, metadata: dict, source_path: Path) -> Page:
@@ -107,126 +103,123 @@ def load_page(file_path: Path) -> Page:
 
 
 # region readers
-def should_process(path: Path, src_dir: Path) -> bool:
-    """Pure logic: Decides if the file at a path should be included.
-    1. The file extension is a PARSEABLE_EXTENSION
-    2. The parent folder doesn't start with an underscore (i.e. not "_data")
+def is_valid_content_file(path: Path, input: Path) -> bool:
+    """Decides if the file at a path should be considered "content" to build the site.
+    1. The path is a file
+    2. The file extension is a PARSEABLE_EXTENSION
+    3. The parent folder doesn't start with an underscore (i.e. not "_data")
+    4. The parent folder doesn't start with a '.' (i.e. not ".obsidian")
+    5. The filename doesn't start with a '.' (i.e. not ".DS_Store")
     """
+
+    # Skip non-files
+    if not path.is_file():
+        return False
+
+    # Skip unsported file extensions
     if path.suffix not in PARSEABLE_EXTENSIONS:
         return False
 
     # Check if any parent (relative to src) starts with '_'
-    relative_parts = path.relative_to(src_dir).parts[:-1]
-    return not any(p.startswith("_") for p in relative_parts)
+    relative_parts = path.relative_to(input)
+    filename = relative_parts.parts[-1]
+    dirs = relative_parts.parts[:-1]
+
+    # Skip any directories that starts with "_" or "."
+    for dir in dirs:
+        if dir.startswith("_"):
+            return False
+        elif dir.startswith("."):
+            return False
+
+    # Skip any filenames that start with "."
+    if filename.startswith("."):
+        return False
+
+    # It's a valid file
+    return True
 
 
-def discover_pages(src_dir: Path) -> Generator[Path, None, None]:
+def discover_content(input: Path) -> Generator[Path, None, None]:
     """
-    Crawls src_dir, excluding any files that shouldn't or can't
+    Crawls the input_dir, excluding any files that shouldn't or can't
     be processed.
     """
-    for file in src_dir.rglob("*"):
-        if file.is_file() and should_process(path=file, src_dir=src_dir):
+    for file in input.rglob("*"):
+        if is_valid_content_file(path=file, input=input):
+            logger.debug(f"Content discovery including '{file.relative_to(input)}'")
             yield file
         else:
-            logger.debug(f"Page discovery skipping {file}")
+            logger.debug(f"Content discovery skipping '{file.relative_to(input)}'")
 
 
-def discover_data(data_dir: Path) -> dict[str, Any]:
+def is_valid_data_file(path: Path, input: Path):
+    """Decides if the file at a path is a proessable 'data' file to build the site with.
+    1. The path is a file
+    """
+    # Skip non-files
+    if not path.is_file():
+        return False
+
+    # Skip files that don't have a data loader
+    if path.suffix not in DATA_LOADERS:
+        logger.error(
+            f"No DATA_LOADER for data '{path.suffix}' files: {path.relative_to(input)}"
+        )
+        return False
+
+    # It's a valid file
+    return True
+
+
+def discover_data_files(input: Path) -> dict[str, Any]:
     """Discover and parse the contents of data files into dictionaries."""
-    global_data: dict[str, Any] = {}
-    if not data_dir.is_dir():
-        return global_data
 
-    for path in data_dir.iterdir():
-        # Skip directories
-        if not path.is_file():
-            continue
-        # Skip unsupported file types
-        if path.suffix not in DATA_LOADERS:
-            logger.warning(f"Unsupported data file suffix '{path.suffix}': {path}")
+    data_dir = input / "_data"
+    global_data: dict[str, Any] = {}
+
+    for path in data_dir.rglob("*"):
+        # Skip unprocessable data files
+        if not is_valid_data_file(path, input):
             continue
 
         loader = DATA_LOADERS[path.suffix]
 
+        # Try to load (parse) the file
         try:
             with path.open("r", encoding="utf-8", newline="") as f:
                 global_data[slugify(path.stem, separator="_")] = loader(f)
         except Exception as e:
-            logger.error(f"Failed to parse data file '{path.name}': {e}")
+            logger.error(f"Failed to parse data file '{path.relative_to(input)}': {e}")
             continue
 
     return global_data
 
 
-def apply_page_transformations(pages: list[Page]) -> list[Page]:
-    """
-    Applies programmatic transformations to pages.
-    """
-    for page in pages:
-        # Add "Links" tag to anything that might be missing it in the links directory
-        if page["source_path"].parts[1] == "links":
-            if "Links" not in page["tags"]:
-                page["tags"].append("Links")
-        elif page["source_path"].parts[1] == "recipes":
-            if "Recipes" not in page["tags"]:
-                page["tags"].append("Recipes")
-        elif page["source_path"].parts[1] == "books":
-            if "BookNotes" not in page["tags"]:
-                page["tags"].append("BookNotes")
-
-    return pages
-
-
 def build_collections(pages: list[Page]) -> Collections:
     """
-    Builds a 'collections' dictionary where the elements for each key are lists of pages. So {{ collections.pages }} or {{ collections.posts }}.
+    Builds a 'collections' dictionary where the elements for each key are lists of content objects.
+    Collection keys are "tags" from the frontmatter/metadata.
+    They are all available in templates as {{ collections.pages }} or {{ collections.posts }} or {{ collections["book-notes"] }}.
 
-    Pages and posts with "hidden: true" in the frontmatter are stored with 'hidden_pages' and 'hidden_posts' keys.
-
-    Pages are sorted by title. Posts are sorted by date.
     """
-
-    collections: Collections = {
-        "posts": [],
-        "pages": [],
-        "hidden_pages": [],
-        "hidden_posts": [],
-        "tags": defaultdict(list),
-    }
 
     # Sort pages by date
     pages.sort(key=lambda x: x["date"], reverse=True)
 
+    # Build collections from page tags
+    collections: Collections = defaultdict(list)
     for page in pages:
-        is_hidden = page.get("hidden", False)
-        is_static_page = page.get("is_page", False)
-
-        # Add posts and pages to the default collections
-        if is_static_page:
-            target = "hidden_pages" if is_hidden else "pages"
-        else:
-            target = "hidden_posts" if is_hidden else "posts"
-
-        collections[target].append(page)
-
-        # Create tag collections
+        collections[all].append(page)
         for tag in page["tags"]:
-            collections["tags"][tag].append(page)
+            collections[tag].append(page)
 
-    # Sort page collections by title
-    collections["pages"].sort(key=lambda x: x["title"])
-    collections["hidden_pages"].sort(key=lambda x: x["title"])
-
-    # Sort tags by count of pages
-    collections["tags"] = dict(
-        sorted(collections["tags"].items(), key=lambda item: len(item[1]), reverse=True)
+    # Sort collections by count of pages in descending order
+    sorted_collections = sorted(
+        collections.items(), key=lambda item: len(item[1]), reverse=True
     )
-
-    # Print Status
-    print("Collection Stats:")
-    print(f" - posts: {len(collections['posts'])}")
-    print(f" - pages: {len(collections['pages'])}")
+    # Convert the list back into a dictionary
+    collections = dict(sorted_collections)
 
     return collections
 
@@ -235,23 +228,23 @@ def build_collections(pages: list[Page]) -> Collections:
 
 
 # region writers
-def clear_dist_dir(dist_dir: Path):
-    if dist_dir.exists():
-        shutil.rmtree(dist_dir)
-    while dist_dir.exists():
+def clear_output_dir(output: Path):
+    """Delete the output directory."""
+    if output.exists():
+        shutil.rmtree(output)
+    while output.exists():
         time.sleep(0.0001)
-    dist_dir.mkdir()
+    logger.info(f"Deleted output dir '{output}'")
+    output.mkdir()
 
 
-def copy_assets(assets_src: Path, dest_dir: Path):
-    if not assets_src.exists():
-        raise FileNotFoundError(f"Could not find assets source: {assets_src}")
+def copy_assets(input: Path, output: Path):
+    """Copy assets into the output directory."""
 
-    # Move to the output folder, NOT back into the source folder
-    dest_assets = dest_dir / "assets"
-
-    shutil.copytree(assets_src, dest_assets, dirs_exist_ok=True)
-    print(f"📁 Assets mirrored to: {dest_assets}")
+    input_assets = input / "assets"
+    dest_assets = output / "assets"
+    shutil.copytree(input_assets, dest_assets, dirs_exist_ok=True)
+    logger.info(f"📁 Assets mirrored to: {dest_assets}")
 
 
 def build_search_index(site_dir: str | Path):
@@ -274,12 +267,12 @@ def get_relative_dest_path(page: Page) -> Path:
     return Path(permalink.lstrip("/"))
 
 
-def write_build_stats(config: Config, collections: Collections, build_time: float):
+def write_build_stats(output: Path, collections: Collections, build_time: float):
     # Calculate the build size
-    build_size_bytes = sum(
-        f.stat().st_size for f in config.dist_dir.rglob("*") if f.is_file()
-    )
+    build_size_bytes = sum(f.stat().st_size for f in output.rglob("*") if f.is_file())
     build_size_mb = build_size_bytes / (1024 * 1024)
+
+    page_count = sum(1 for _ in output.rglob("index.html"))
 
     # Get the build stats
     build_stats = {
@@ -287,73 +280,83 @@ def write_build_stats(config: Config, collections: Collections, build_time: floa
         "python_version": sys.version.split()[0],
         "build_time_s": round(build_time, 2),
         "build_size_mb": round(build_size_mb, 1),
-        "content": {
-            "pages": len(collections["pages"]),
-            "hidden_pages": len(collections["hidden_pages"]),
-            "posts": len(collections["posts"]),
-            "hidden_posts": len(collections["hidden_posts"]),
-        },
+        "page_count": page_count,
     }
 
-    file_path = config.dist_dir / "stats.json"
-    with open(file_path, "w") as f:
-        json.dump(build_stats, f, indent=2)
+    file_path = output / "stats" / "index.html"
+    safe_write(file_path=file_path, content=json.dumps(build_stats, indent=2))
 
 
 def write_pages(
-    config: Config, site_data: dict, pages: list[Page], collections: Collections
+    output: Path,
+    jinja_env: Environment,
+    site_data: dict,
+    pages: list[Page],
+    collections: Collections,
 ):
     """Write all the pages to the destination directory."""
+    common_context = {}
+    common_context.update(site_data)  # Lowest priority
+    common_context["build_date"] = (
+        datetime.date.today()
+    )  # TODO: maybe remove this one day?
+    common_context["collections"] = collections
+
     for page in pages:
-        context = {
-            **site_data,
-            **page,
-            "collections": collections,
-            "build_date": datetime.date.today(),
-        }
+        # Build the context for a page
+        context = common_context.copy()
+        context["page"] = page
+        context.update(page)
 
         # Perform Jinja render step on markdown files if renderJinja flag is set
         if page.get("renderJinja") and page["source_path"].suffix == ".md":
-            template = config.env.from_string(page["content"])
+            template = jinja_env.from_string(page["content"])
             page["content"] = template.render(**context)
             context = {**context, "content": page["content"]}
 
         # Render the page
         if page["layout"]:
-            template = config.env.get_template(page["layout"])
+            template = jinja_env.get_template(page["layout"])
         else:
-            template = config.env.from_string(page["content"])
+            template = jinja_env.from_string(page["content"])
 
         # Write the page out
-        dest_path = config.dist_dir / get_relative_dest_path(page)
+        dest_path = output / get_relative_dest_path(page)
         safe_write(file_path=dest_path, content=template.render(**context))
 
 
 def write_tag_pages(
-    config: Config, site_data: dict, pages: list[Page], collections: Collections
+    output: Path,
+    jinja_env: Environment,
+    site_data: dict,
+    pages: list[Page],
+    collections: Collections,
 ):
     """Write all the tag pages to the destination directory."""
     print("One day we'll write out some tag pages")
 
 
-def build_site(config: Config, index: bool = False) -> float:
+def build_site(input: Path, output: Path, index: bool = False) -> float:
     start_time = time.time()
 
+    # Load jinja2 Environment
+    jinja_env = get_jinja_env(input=input, version=start_time)
+
     # Clear destination directory
-    clear_dist_dir(config.dist_dir)
+    clear_output_dir(output=output)
 
     # static assets copy
-    copy_assets(assets_src=config.assets_dir, dest_dir=config.dist_dir)
+    copy_assets(input=input, output=output)
 
     # load data files
-    site_data = discover_data(config.data_dir)
+    site_data = discover_data_files(input=input)
 
     # Discover all pages and Transform files into dicts
-    pages = [load_page(f) for f in discover_pages(config.src_dir)]
-    page_count = len(pages)
+    pages = [load_page(f) for f in discover_content(input)]
+
+    logger.info(f"Discovered {len(pages)} content pages)")
 
     # Transform Pages
-    pages = apply_page_transformations(pages)
 
     # Render page content
     for page in pages:
@@ -366,18 +369,29 @@ def build_site(config: Config, index: bool = False) -> float:
     collections = build_collections(pages=pages)
 
     # Write pages
-    write_pages(config=config, site_data=site_data, pages=pages, collections=collections)
+    write_pages(
+        output=output,
+        jinja_env=jinja_env,
+        site_data=site_data,
+        pages=pages,
+        collections=collections,
+    )
+
     # Write tag pages
     write_tag_pages(
-        config=config, site_data=site_data, pages=pages, collections=collections
+        output=output,
+        jinja_env=jinja_env,
+        site_data=site_data,
+        pages=pages,
+        collections=collections,
     )
 
     build_duration = time.time() - start_time
 
     # Write build stats
-    write_build_stats(config=config, collections=collections, build_time=build_duration)
+    write_build_stats(output=output, collections=collections, build_time=build_duration)
 
     # Run pagefind
     if index:
-        build_search_index(config.dist_dir)
+        build_search_index(output)
         # Final Duration

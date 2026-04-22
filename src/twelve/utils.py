@@ -4,6 +4,7 @@ from typing import Any
 
 import markdown
 from pymdownx.superfences import fence_div_format
+from slugify import slugify
 
 
 def safe_write(file_path: Path | str, content: str):
@@ -35,9 +36,7 @@ def normalize_tags(value: Any) -> list[str]:
         items = value
 
     # Clean, stringify, and lowercase items
-    cleaned = [
-        str(t).strip().lower() for t in items if t is not None and str(t).strip()
-    ]
+    cleaned = [slugify(str(t)) for t in items if t is not None and str(t).strip()]
 
     # De-duplicate while preserving order
     return list(dict.fromkeys(cleaned))

@@ -1,7 +1,6 @@
 import datetime
-from dataclasses import dataclass, field
 from email.utils import formatdate as _rfc822
-from functools import cached_property
+from functools import cache
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
@@ -57,9 +56,11 @@ def rfc822_format(value):
     return _rfc822(value.timestamp(), localtime=True)
 
 
-# Set up jinja templates & filters
-def jinja_loader(layout_dir: Path) -> Environment:
-    env = Environment(loader=FileSystemLoader(str(layout_dir)))
+@cache
+def get_jinja_env(input: Path, version: str = "") -> Environment:
+    """Returns a jinja2 Environment for rendering templates."""
+    templates_dir = input / "_layouts"
+    env = Environment(loader=FileSystemLoader(str(templates_dir)))
     env.filters["markdown"] = md_to_html
     env.filters["rfc3339"] = rfc3339_format
     env.filters["rfc822"] = rfc822_format
@@ -68,36 +69,3 @@ def jinja_loader(layout_dir: Path) -> Environment:
 
 
 # endregion
-
-
-@dataclass(frozen=True)
-class Config:
-    src_dir: Path
-    dist_dir: Path
-    verbose: bool = False
-    build_date: datetime.datetime = field(default_factory=datetime.datetime.now)
-
-    @property
-    def layout_dir(self) -> Path:
-        return self.src_dir / "_layouts"
-
-    @property
-    def data_dir(self) -> Path:
-        return self.src_dir / "_data"
-
-    @property
-    def template_dir(self) -> Path:
-        return self.src_dir / "_templates"
-
-    @property
-    def assets_dir(self) -> Path:
-        return self.src_dir / "_assets"
-
-    @property
-    def pages_dir(self) -> Path:
-        return self.src_dir / "pages"
-
-    @cached_property
-    def env(self) -> Environment:
-        # Lazy load Jinja only when accessed
-        return jinja_loader(self.layout_dir)

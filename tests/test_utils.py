@@ -47,6 +47,7 @@ def test_safe_write_fails_if_exists(tmp_path):
         (123, ["123"]),
         ([1, 2.5], ["1", "2.5"]),
         (["python", "", None, "  java  "], ["python", "java"]),
+        ("Workday Integrations 9", ["workday-integrations-9"]),
     ],
 )
 def test_normalize_tags_behavior(input_value, expected):

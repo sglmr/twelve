@@ -15,7 +15,7 @@ from livereload import Server
 from rich import print
 from slugify import slugify
 
-from twelve.generator import Config, build_site
+from twelve.generator import build_site
 from twelve.utils import safe_write
 
 
@@ -102,8 +102,8 @@ def create_new_post(title: str, template_name: str, date: datetime, input: Path)
 def run_build_site(input: Path, output: Path, index: bool) -> float:
     print("🚀 Building site...")
     start_time = time.time()
-    config = Config(src_dir=input, dist_dir=output)
-    build_site(config=config, index=index)
+
+    build_site(input=input, output=output, index=index)
     duration = time.time() - start_time
     print(f"🏁 Build completed in {duration:.1f}s")
     return duration

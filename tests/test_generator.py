@@ -98,6 +98,7 @@ def test_load_page_variations(sub_path, content, metadata, tmp_path):
         ("assets/post.md", False),
         ("assets/photo.jpg", False),
         ("blog/assets/post.md", True),
+        ("blog/.post.md", False),
     ],
     ids=lambda p: p,  # Uses the sub_path string as the ID
 )

@@ -99,16 +99,6 @@ def create_new_post(title: str, template_name: str, date: datetime, input: Path)
 # region build
 
 
-def run_build_site(input: Path, output: Path, index: bool) -> float:
-    print("🚀 Building site...")
-    start_time = time.time()
-
-    build_site(input=input, output=output, index=index)
-    duration = time.time() - start_time
-    print(f"🏁 Build completed in {duration:.1f}s")
-    return duration
-
-
 def should_ignore_watch_path(path_str: str, input: Path, output: Path) -> bool:
     """
     Helper function that decides if a changed file path should be ignored.
@@ -130,23 +120,38 @@ def should_ignore_watch_path(path_str: str, input: Path, output: Path) -> bool:
     return False
 
 
-def run_build_and_serve(
-    input: Path, output: Path, reload: bool, index: bool, port: int = 8080
+def _run_build(
+    input: Path,
+    output: Path,
+    serve: bool,
+    reload: bool,
+    index: bool,
+    quiet: bool,
+    port: int = 8080,
 ):
-
-    def _build():
-        return run_build_site(input=input, output=output, index=index)
+    def _build() -> float:
+        print(f"🚀 Building site '{input}'")
+        start_time = time.time()
+        build_site(input=input, output=output, index=index, quiet=quiet)
+        duration = time.time() - start_time
+        print(f"🏁 Build completed in {duration:.1f}s")
+        return duration
 
     def _ignore(path_str: str):
         return should_ignore_watch_path(path_str=path_str, input=input, output=output)
 
     duration = _build()
+
+    # Early exit if not reloading or serving
+    if not any([serve, reload]):
+        return
+
     server = Server()
     if reload:
         server.watch(filepath=str(input), delay=1, func=_build, ignore=_ignore)
     server.serve(
         root=str(output),
-        port=8080,
+        port=port,
         open_url_delay=0,
     )
 
@@ -170,6 +175,9 @@ def cli(argv: Sequence[str] | None = None) -> int:
     shared_parser.add_argument(
         "-i", "--input", dest="input", help="input directory", default=env_input
     )
+    shared_parser.add_argument(
+        "-q", "--quiet", dest="quiet", action="store_true", help="quiet mode"
+    )
 
     # Create the top-level subparser object
     subparsers = main_parser.add_subparsers(dest="command", help="Available commands")
@@ -186,7 +194,7 @@ def cli(argv: Sequence[str] | None = None) -> int:
         "-l", "--live-reload", action="store_true", help="Live reload"
     )
     build_parser.add_argument(
-        "--index", action="store_true", help="Build pagefind search index"
+        "-n", "--no-index", action="store_true", help="do not build search index"
     )
 
     # --- NEW COMMAND ---
@@ -213,15 +221,14 @@ def cli(argv: Sequence[str] | None = None) -> int:
     match args.command:
         case "build":
             output_path = Path(args.output).resolve()
-            if args.live_reload or args.serve:
-                run_build_and_serve(
-                    input=input_path,
-                    output=output_path,
-                    reload=args.live_reload,
-                    index=args.index,
-                )
-            else:
-                run_build_site(input=input_path, output=output_path, index=args.index)
+            _run_build(
+                input=input_path,
+                output=output_path,
+                serve=args.serve,
+                reload=args.live_reload,
+                index=args.no_index is False,
+                quiet=args.quiet,
+            )
 
         case "new":
             # List the available templates

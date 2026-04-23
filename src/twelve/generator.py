@@ -247,15 +247,17 @@ def copy_assets(input: Path, output: Path):
     logger.info(f"📁 Assets mirrored to: {dest_assets}")
 
 
-def build_search_index(site_dir: str | Path):
+def build_search_index(site_dir: str | Path, quiet: bool):
     # Get a str version of the dist dir.
-    if isinstance(site_dir, Path):
-        site = str(site_dir.resolve())
-    else:
-        site = str(site_dir)
+    site = str(site_dir)
 
-    # python3 -m pagefind --site public --serve
-    subprocess.run(["npx", "-y", "pagefind", "--site", site], check=True)
+    # command = ["npx", "-y", "pagefind", "--site", site]
+    command = ["python3", "-m", "pagefind", "--site", site]
+    if quiet:
+        command.append("--quiet")
+
+    # Run command
+    subprocess.run(command, check=True)
 
 
 def get_relative_dest_path(page: Page) -> Path:
@@ -336,7 +338,7 @@ def write_tag_pages(
     print("One day we'll write out some tag pages")
 
 
-def build_site(input: Path, output: Path, index: bool = False) -> float:
+def build_site(input: Path, output: Path, index: bool = False, quiet=False) -> float:
     start_time = time.time()
 
     # Load jinja2 Environment
@@ -393,5 +395,7 @@ def build_site(input: Path, output: Path, index: bool = False) -> float:
 
     # Run pagefind
     if index:
-        build_search_index(output)
+        build_search_index(site_dir=output, quiet=quiet)
         # Final Duration
+
+    return build_duration

@@ -37,11 +37,9 @@ class Page(TypedDict, total=False):
     title: str
     date: datetime.date
     permalink: str
-    hidden: bool
     tags: list[str]
     description: NotRequired[str | None]
     layout: NotRequired[str | None]
-    is_page: bool
 
     # Input File details
     source_path: Path
@@ -75,10 +73,8 @@ def create_page_object(content: str, metadata: dict, source_path: Path) -> Page:
         "title": metadata["title"],
         "date": metadata.get("date", datetime.date.today()),
         "permalink": permalink,
-        "hidden": metadata.get("hidden", False),
         "tags": normalize_tags(metadata.get("tags")),
         "layout": metadata.get("layout"),
-        "is_page": "pages" in source_path.parts,
         "source_path": source_path,
         "url": permalink,
         "raw_content": content,
@@ -124,6 +120,10 @@ def is_valid_content_file(path: Path, input: Path) -> bool:
     relative_parts = path.relative_to(input)
     filename = relative_parts.parts[-1]
     dirs = relative_parts.parts[:-1]
+
+    # Skip anything in the assets directory
+    if dirs[0] == "assets":
+        return False
 
     # Skip any directories that starts with "_" or "."
     for dir in dirs:

@@ -1,12 +1,10 @@
 import datetime
-from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
 
 from twelve.config import (
-    Config,
     display_date_filter,
-    jinja_loader,
+    get_jinja_env,
     rfc822_format,
     rfc3339_format,
 )
@@ -69,32 +67,18 @@ def test_rfc822_format():
 # endregion
 
 
-# region Config
-def test_config_paths(cfg: Config):
-    assert isinstance(cfg.src_dir, Path)
-    assert cfg.dist_dir.name == "_site"
-    assert cfg.layout_dir.name == "_layouts"
-    assert cfg.data_dir.name == "_data"
-    assert cfg.template_dir.name == "_templates"
-    assert cfg.assets_dir.name == "_assets"
-    assert cfg.pages_dir.name == "pages"
-
-
-# endregion Config
-
-
 # region jinja
-def test_jinja_loader_configuration(tmp_path):
+def test_get_jinja_env_configuration(tmp_path):
     """
     Verifies that the Jinja environment is correctly configured with
     the right loader path and all custom filters.
     """
     # 1. Setup: Use tmp_path to simulate a layouts directory
-    layout_dir = tmp_path / "templates"
+    layout_dir = tmp_path / "_layouts"
     layout_dir.mkdir()
 
     # 2. Act: Run the loader
-    env = jinja_loader(layout_dir)
+    env = get_jinja_env(input=tmp_path)
 
     # 3. Assert: Verify the Environment and Loader
     assert isinstance(env, Environment)
@@ -116,14 +100,14 @@ def test_jinja_markdown_filter_integration(tmp_path):
     An integration test to ensure the 'markdown' filter actually
     works within a rendered template.
     """
-    layout_dir = tmp_path / "templates"
+    layout_dir = tmp_path / "_layouts"
     layout_dir.mkdir()
 
     # Create a dummy template file
     template_file = layout_dir / "test.html"
     template_file.write_text("{{ content | markdown }}")
 
-    env = jinja_loader(layout_dir)
+    env = get_jinja_env(input=tmp_path)
     template = env.get_template("test.html")
 
     # Render and check output (assuming md_to_html turns # into <h1>)

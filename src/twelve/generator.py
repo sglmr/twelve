@@ -12,7 +12,9 @@ from typing import Any, Generator, NotRequired, TypedDict
 from zoneinfo import ZoneInfo
 
 import frontmatter
+import pyvips
 import yaml
+from bs4 import BeautifulSoup
 from jinja2 import Environment
 from rich import print
 from slugify import slugify
@@ -326,6 +328,55 @@ def write_pages(
         safe_write(file_path=dest_path, content=template.render(**context))
 
 
+def add_img_dimensions(output_dir: Path):
+    """
+    Scans the output directory, resolves images relative to each HTML file,
+    and injects dimensions using libvips.
+    """
+    for html_file in output_dir.rglob("*.html"):
+        soup = BeautifulSoup(html_file.read_text(encoding="utf-8"), "html.parser")
+        modified = False
+
+        for img in soup.find_all("img"):
+            src = img.get("src")
+
+            # Filter for local images and skip already-processed ones
+            if (
+                not src
+                or src.startswith(("http", "data:"))
+                or (img.get("width") and img.get("height"))
+            ):
+                continue
+
+            # Resolve the image path relative to the HTML file
+            # If src is "/assets/img.png", it resolves from output_dir root
+            # If src is "img.png", it resolves from the html_file's parent
+            if src.startswith("/"):
+                img_path = output_dir / src.lstrip("/")
+            else:
+                img_path = html_file.parent / src
+
+            if img_path.exists() and img_path.is_file():
+                try:
+                    # libvips header-only read (fast/low memory)
+                    vips_img = pyvips.Image.new_from_file(str(img_path))
+
+                    img["width"] = vips_img.width
+                    img["height"] = vips_img.height
+
+                    # Optional: Add lazy loading for better Core Web Vitals
+                    if not img.get("loading"):
+                        img["loading"] = "lazy"
+
+                    modified = True
+                except pyvips.Error:
+                    print(f"vips could not read: {img_path}")
+
+        if modified:
+            html_file.write_text(str(soup), encoding="utf-8")
+            print(f"Updated: {html_file.relative_to(output_dir)}")
+
+
 def write_tag_pages(
     output: Path,
     jinja_env: Environment,
@@ -337,7 +388,7 @@ def write_tag_pages(
     print("One day we'll write out some tag pages")
 
 
-def build_site(input: Path, output: Path, index: bool = False, quiet=False) -> float:
+def build_site(input: Path, output: Path, fast: bool = False, quiet=False) -> float:
     start_time = time.time()
 
     # Load jinja2 Environment
@@ -389,12 +440,13 @@ def build_site(input: Path, output: Path, index: bool = False, quiet=False) -> f
 
     build_duration = time.time() - start_time
 
+    if not fast:
+        # Add image dimentsions to html files
+        add_img_dimensions(output_dir=output)
+        # Run pagefind
+        build_search_index(site_dir=output, quiet=quiet)
+
     # Write build stats
     write_build_stats(output=output, collections=collections, build_time=build_duration)
-
-    # Run pagefind
-    if index:
-        build_search_index(site_dir=output, quiet=quiet)
-        # Final Duration
 
     return build_duration

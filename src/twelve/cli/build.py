@@ -39,14 +39,14 @@ def _run_build(
     output: Path,
     serve: bool,
     reload: bool,
-    index: bool,
+    fast: bool,
     quiet: bool,
     port: int = 8080,
 ):
     def _build() -> float:
         print(f"🚀 Building site '{input}'")
         start_time = time.time()
-        build_site(input=input, output=output, index=index, quiet=quiet)
+        build_site(input=input, output=output, fast=fast, quiet=quiet)
         duration = time.time() - start_time
         print(f"🏁 Build completed in {duration:.1f}s")
         return duration
@@ -82,7 +82,7 @@ def handle_build(args: argparse.Namespace) -> None:
         output=output_path,
         serve=args.serve,
         reload=args.live_reload,
-        index=args.no_index is False,
+        fast=args.fast,
         quiet=args.quiet,
     )
 
@@ -99,7 +99,10 @@ def setup_build_subparser(subparser: argparse._SubParsersAction) -> None:
     build_p.add_argument("-s", "--serve", action="store_true", help="Serve site")
     build_p.add_argument("-l", "--live-reload", action="store_true", help="Live reload")
     build_p.add_argument(
-        "-n", "--no-index", action="store_true", help="do not build search index"
+        "-f",
+        "--fast",
+        action="store_true",
+        help="skip slow operations like search indexing and post-processing img tags",
     )
     build_p.add_argument(
         "-i", "--input", dest="input", help="input directory", default=env_input

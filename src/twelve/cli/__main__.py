@@ -158,16 +158,7 @@ def cli(argv: Sequence[str] | None = None) -> int:
 
 
     match args.command:
-        case "build":
-            output_path = Path(args.output).resolve()
-            _run_build(
-                input=input_path,
-                output=output_path,
-                serve=args.serve,
-                reload=args.live_reload,
-                index=args.no_index is False,
-                quiet=args.quiet,
-            )
+       
 
         case "new":
             # List the available templates

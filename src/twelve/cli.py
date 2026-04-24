@@ -166,7 +166,7 @@ def cli(argv: Sequence[str] | None = None) -> int:
     env_output = os.getenv("TWELVE_OUTPUT", ".site")
 
     main_parser = ArgumentParser(
-        description="bs: build site", formatter_class=ArgumentDefaultsHelpFormatter
+        description="Twelve:", formatter_class=ArgumentDefaultsHelpFormatter
     )
 
     # A shared parser for the input directory
@@ -180,10 +180,10 @@ def cli(argv: Sequence[str] | None = None) -> int:
     )
 
     # Create the top-level subparser object
-    subparsers = main_parser.add_subparsers(dest="command", help="Available commands")
+    command_parsers = main_parser.add_subparsers(dest="command")
 
-    # --- BUILD COMMAND ---
-    build_parser = subparsers.add_parser(
+    # create the parser for the "build" command
+    build_parser = command_parsers.add_parser(
         "build", parents=[shared_parser], help="Build the static site"
     )
     build_parser.add_argument(
@@ -197,8 +197,8 @@ def cli(argv: Sequence[str] | None = None) -> int:
         "-n", "--no-index", action="store_true", help="do not build search index"
     )
 
-    # --- NEW COMMAND ---
-    new_parser = subparsers.add_parser(
+    # create the parser fro the "new" command
+    new_parser = command_parsers.add_parser(
         "new", parents=[shared_parser], help="Create a new post"
     )
     new_parser.add_argument(
@@ -208,7 +208,7 @@ def cli(argv: Sequence[str] | None = None) -> int:
     new_parser.add_argument("-l", "--list", action="store_true", help="list templates")
 
     # --- CRAWL COMMAND ---
-    crawl_parser = subparsers.add_parser("crawl", help="Crawl the website.")
+    crawl_parser = command_parsers.add_parser("crawl", help="Crawl the website.")
     crawl_parser.add_argument("url", help="url to crawl")
     crawl_parser.add_argument(
         "-l", "--links", action="store_true", help="check for dead links"

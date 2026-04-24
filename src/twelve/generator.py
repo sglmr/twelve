@@ -251,8 +251,7 @@ def build_search_index(site_dir: str | Path, quiet: bool):
     # Get a str version of the dist dir.
     site = str(site_dir)
 
-    # command = ["npx", "-y", "pagefind", "--site", site]
-    command = ["python3", "-m", "pagefind", "--site", site]
+    command = ["npx", "-y", "pagefind", "--site", site]
     if quiet:
         command.append("--quiet")
 

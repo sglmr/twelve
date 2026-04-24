@@ -1,1 +1,1 @@
-from .__main__ import cli
+from twelve.cli.__main__ import cli

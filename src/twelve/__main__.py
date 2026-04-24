@@ -1,4 +1,0 @@
-from twelve.cli import cli  # pragma: no cover
-
-if __name__ == "__main__":  # pragma: no cover
-    raise SystemExit(cli())

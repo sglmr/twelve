@@ -6,7 +6,7 @@ from pathlib import Path
 from livereload import Server
 from rich import print
 
-from twelve.cli.utils import print_title
+from twelve.cli.utils import CLI_FORMATTER, print_title
 from twelve.generator import build_site
 
 env_input = os.getenv("TWELVE_INPUT")
@@ -90,7 +90,9 @@ def handle_build(args: argparse.Namespace) -> None:
 def setup_build_subparser(subparser: argparse._SubParsersAction) -> None:
     """Configures the 'stash' command and attaches it to the main subparsers."""
 
-    build_p = subparser.add_parser("build", help="Build the static site")
+    build_p = subparser.add_parser(
+        "build", help="Build the static site", formatter_class=CLI_FORMATTER
+    )
     build_p.add_argument(
         "-o", "--output", dest="output", default=env_output, help="destination directory"
     )
@@ -107,4 +109,4 @@ def setup_build_subparser(subparser: argparse._SubParsersAction) -> None:
     )
 
     # Pro Tip: Set a 'func' default so main() knows who to call
-    build_p.set_defaults(func=handle_build)
+    build_p.set_defaults(func=handle_build, parser=build_p)

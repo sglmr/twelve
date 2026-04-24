@@ -8,7 +8,7 @@ import pyvips
 from rich import print
 from slugify import slugify
 
-from twelve.cli.utils import print_title
+from twelve.cli.utils import CLI_FORMATTER, print_title
 
 MAX_DIM = 2000
 QUALITY = 75
@@ -126,7 +126,9 @@ def handle_stash(args: argparse.Namespace) -> None:
 def setup_stash_subparser(subparser: argparse._SubParsersAction) -> None:
     """Configures the 'stash' command and attaches it to the main subparsers."""
     stash_p = subparser.add_parser(
-        "stash", help="Stash assets. Images can be optimized on import."
+        "stash",
+        help="Stash assets. Images can be optimized on import.",
+        formatter_class=CLI_FORMATTER,
     )
     stash_p.add_argument("source", help="path to the raw file")
     stash_p.add_argument(
@@ -161,4 +163,4 @@ def setup_stash_subparser(subparser: argparse._SubParsersAction) -> None:
     )
 
     # Pro Tip: Set a 'func' default so main() knows who to call
-    stash_p.set_defaults(func=handle_stash)
+    stash_p.set_defaults(func=handle_stash, parser=stash_p)

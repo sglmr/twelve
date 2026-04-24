@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 import sys
-import time
 import webbrowser
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 from collections.abc import Sequence
@@ -11,12 +10,13 @@ from pathlib import Path
 from urllib import parse
 
 from jinja2 import Template
-from livereload import Server
 from rich import print
 from slugify import slugify
 
-from twelve.generator import build_site
 from twelve.utils import safe_write
+
+from .build import setup_build_subparser
+from .stash import setup_stash_subparser
 
 
 def template_choices(templates_dir: Path) -> list[str]:
@@ -99,63 +99,6 @@ def create_new_post(title: str, template_name: str, date: datetime, input: Path)
 # region build
 
 
-def should_ignore_watch_path(path_str: str, input: Path, output: Path) -> bool:
-    """
-    Helper function that decides if a changed file path should be ignored.
-    True == ignore
-
-    """
-    # Resolve the incoming path from livereload
-    path = Path(path_str).resolve()
-
-    # Rule 1: ignore files in the output folder
-    if path.is_relative_to(output):
-        return True
-
-    # Rule 2: Check if any part of the path is hidden (e.g., .git, .DS_Store, .obsidian/)
-    #   any() to checks all parts of the path at once.
-    if any(part.startswith(".") for part in path.parts):
-        return True
-
-    return False
-
-
-def _run_build(
-    input: Path,
-    output: Path,
-    serve: bool,
-    reload: bool,
-    index: bool,
-    quiet: bool,
-    port: int = 8080,
-):
-    def _build() -> float:
-        print(f"🚀 Building site '{input}'")
-        start_time = time.time()
-        build_site(input=input, output=output, index=index, quiet=quiet)
-        duration = time.time() - start_time
-        print(f"🏁 Build completed in {duration:.1f}s")
-        return duration
-
-    def _ignore(path_str: str):
-        return should_ignore_watch_path(path_str=path_str, input=input, output=output)
-
-    duration = _build()
-
-    # Early exit if not reloading or serving
-    if not any([serve, reload]):
-        return
-
-    server = Server()
-    if reload:
-        server.watch(filepath=str(input), delay=1, func=_build, ignore=_ignore)
-    server.serve(
-        root=str(output),
-        port=port,
-        open_url_delay=0,
-    )
-
-
 # endregion
 
 
@@ -180,25 +123,14 @@ def cli(argv: Sequence[str] | None = None) -> int:
     )
 
     # Create the top-level subparser object
-    command_parsers = main_parser.add_subparsers(dest="command")
+    command_parser = main_parser.add_subparsers(dest="command")
 
-    # create the parser for the "build" command
-    build_parser = command_parsers.add_parser(
-        "build", parents=[shared_parser], help="Build the static site"
-    )
-    build_parser.add_argument(
-        "-o", "--output", dest="output", default=env_output, help="destination directory"
-    )
-    build_parser.add_argument("-s", "--serve", action="store_true", help="Serve site")
-    build_parser.add_argument(
-        "-l", "--live-reload", action="store_true", help="Live reload"
-    )
-    build_parser.add_argument(
-        "-n", "--no-index", action="store_true", help="do not build search index"
-    )
+    # create the parser for the "stash" command
+    setup_stash_subparser(command_parser)
+    setup_build_subparser(command_parser)
 
     # create the parser fro the "new" command
-    new_parser = command_parsers.add_parser(
+    new_parser = command_parser.add_parser(
         "new", parents=[shared_parser], help="Create a new post"
     )
     new_parser.add_argument(
@@ -208,7 +140,7 @@ def cli(argv: Sequence[str] | None = None) -> int:
     new_parser.add_argument("-l", "--list", action="store_true", help="list templates")
 
     # --- CRAWL COMMAND ---
-    crawl_parser = command_parsers.add_parser("crawl", help="Crawl the website.")
+    crawl_parser = command_parser.add_parser("crawl", help="Crawl the website.")
     crawl_parser.add_argument("url", help="url to crawl")
     crawl_parser.add_argument(
         "-l", "--links", action="store_true", help="check for dead links"
@@ -216,7 +148,14 @@ def cli(argv: Sequence[str] | None = None) -> int:
 
     # Parse args
     args = main_parser.parse_args(argv)
-    input_path = Path(args.input).resolve()
+
+    # If you used parser.set_defaults(func=...), execute it:
+    if hasattr(args, "func"):
+        args.func(args)
+    """
+    if getattr(args.input):
+        input_path = Path(args.input).resolve()
+
 
     match args.command:
         case "build":
@@ -247,8 +186,13 @@ def cli(argv: Sequence[str] | None = None) -> int:
             new_parser.print_help()
         case "crawl":
             print("Not implemented yet")
+        """
 
     return 0
 
 
 # endregion
+
+
+if __name__ == "__main__":
+    cli()

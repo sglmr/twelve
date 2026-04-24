@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from twelve.cli import (
+from twelve.cli.__main__ import (
     create_post_data,
     get_template_content,
     print_template_choices,

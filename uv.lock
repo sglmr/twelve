@@ -688,6 +688,7 @@ name = "twelve"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "beautifulsoup4" },
     { name = "jinja2" },
     { name = "livereload" },
     { name = "markdown" },
@@ -713,6 +714,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "beautifulsoup4", specifier = ">=4.14.3" },
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "livereload", specifier = ">=2.7.1" },
     { name = "markdown", specifier = ">=3.10.2" },

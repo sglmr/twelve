@@ -17,6 +17,7 @@ dependencies = [
     "livereload>=2.7.1",
     "pyvips[binary]>=3.1.1",
     "rich-argparse>=1.7.2",
+    "beautifulsoup4>=4.14.3",
 ]
 
 [dependency-groups]

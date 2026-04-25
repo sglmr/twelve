@@ -332,9 +332,11 @@ def add_img_dimensions(output_dir: Path):
     """
     Scans the output directory, resolves images relative to each HTML file,
     and injects dimensions using libvips.
+
+    TODO: This would go faster if I did it before the file was written to disk.
     """
     for html_file in output_dir.rglob("*.html"):
-        soup = BeautifulSoup(html_file.read_text(encoding="utf-8"), "html.parser")
+        soup = BeautifulSoup(html_file.read_text(encoding="utf-8"), "lxml")
         modified = False
 
         for img in soup.find_all("img"):

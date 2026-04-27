@@ -6,6 +6,7 @@ from collections.abc import Sequence
 from twelve.cli.build import setup_build_subparser
 from twelve.cli.new import setup_new_subparser
 from twelve.cli.stash import setup_stash_subparser
+from twelve.cli.tool import setup_tool_subparser
 from twelve.cli.utils import CLI_FORMATTER
 
 
@@ -20,6 +21,7 @@ def cli(argv: Sequence[str] | None = None) -> int:
     setup_stash_subparser(command_parser)
     setup_build_subparser(command_parser)
     setup_new_subparser(command_parser)
+    setup_tool_subparser(command_parser)
 
     # --- CRAWL COMMAND ---
     crawl_parser = command_parser.add_parser("crawl", help="Crawl the website.")

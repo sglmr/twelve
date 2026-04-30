@@ -93,8 +93,12 @@ def create_page_object(content: str, metadata: dict, source_path: Path) -> Page:
 
 def load_page(file_path: Path) -> Page:
     """Thin wrapper that handles File I/O to create a page object."""
-    post = frontmatter.load(str(file_path.resolve()))
-    return create_page_object(post.content, post.metadata, file_path)
+    try:
+        post = frontmatter.load(str(file_path.resolve()))
+        return create_page_object(post.content, post.metadata, file_path)
+    except Exception:
+        logger.error(f"Could not load page from file {file_path.resolve()}")
+        return None
 
 
 # endregion
@@ -124,7 +128,7 @@ def is_valid_content_file(path: Path, input: Path) -> bool:
     dirs = relative_parts.parts[:-1]
 
     # Skip anything in the assets directory
-    if dirs[0] == "assets":
+    if dirs and dirs[0] == "assets":
         return False
 
     # Skip any directories that starts with "_" or "."
@@ -406,6 +410,7 @@ def build_site(input: Path, output: Path, fast: bool = False, quiet=False) -> fl
     site_data = discover_data_files(input=input)
 
     # Discover all pages and Transform files into dicts
+    # TODO: Should probably turn load_page into some kind of generator
     pages = [load_page(f) for f in discover_content(input)]
 
     logger.info(f"Discovered {len(pages)} content pages)")

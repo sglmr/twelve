@@ -69,7 +69,7 @@ md = markdown.Markdown(
         "pymdownx.highlight": {
             "noclasses": True,
             "use_pygments": True,
-            "pygments_style": "default",
+            "pygments_style": "igor",
             "pygments_lang_class": False,  # 1password extension js breaks highlighting if this is True
         },
         "pymdownx.tilde": {"subscript": False},
